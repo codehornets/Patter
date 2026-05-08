@@ -77,6 +77,8 @@ Available LLM providers: `OpenAILLM`, `AnthropicLLM`, `GroqLLM`, `CerebrasLLM`, 
 | `backgroundAudio` | `BackgroundAudioPlayer` | No | — | Background audio player. |
 | `bargeInThresholdMs` | `number` | No | `300` | Barge-in hang-over window (ms). Set to `0` to disable. |
 | `aggressiveFirstFlush` | `boolean` | No | `false` | Opt-in low-latency mode: emits the first clause on soft punctuation (`,`, em-dash) once the buffer reaches ≥40 chars. Saves 200–500 ms TTFA. Hard-disabled when `language="it"` (Italian punctuation patterns are incompatible). |
+| `disablePhonePreamble` | `boolean` | No | `false` | When `false` (default), Patter prepends a phone-friendly preamble to `systemPrompt` that instructs the LLM to avoid markdown, emojis, bullet lists, and code blocks; spell out numbers and dates; and keep replies short. Set to `true` to ship `systemPrompt` verbatim. |
+| `provider` | `'openai_realtime' \| 'elevenlabs_convai' \| 'pipeline'` | No | derived | Provider mode. Normally derived from `engine` / `stt` + `tts`. Pass `'pipeline'` explicitly when building a pipeline-mode agent without an engine instance. |
 
 ## Validation Rules
 
@@ -110,6 +112,45 @@ Two system tools are automatically injected into every agent:
 - **`end_call`** — Ends the current call with an optional reason.
 
 You do not need to define these in your `tools` array. The AI model can invoke them based on conversation context.
+
+## Voice Activity Detection (VAD)
+
+Pipeline-mode agents can plug a VAD provider into the `vad` option to gate STT around real speech and drive barge-in detection. The SDK ships **Silero VAD** (an ONNX model, ~1 MB) with a telephony-tuned factory:
+
+```typescript
+import { SileroVAD, DeepgramSTT, AnthropicLLM, ElevenLabsTTS } from "getpatter";
+
+// Recommended for any phone-call deployment.
+const vad = await SileroVAD.forPhoneCall();
+
+const agent = phone.agent({
+  stt: new DeepgramSTT(),
+  llm: new AnthropicLLM(),
+  tts: new ElevenLabsTTS({ voiceId: "rachel" }),
+  systemPrompt: "You are a helpful assistant.",
+  vad,
+});
+```
+
+`SileroVAD.forPhoneCall(options?)` is identical to `SileroVAD.load(...)` but pins `sampleRate` to 16 000 Hz — the only sample rate Patter's pipeline-mode audio bus uses (8 kHz mulaw from Twilio is upsampled to 16 kHz PCM before reaching the VAD). All other parameters use the upstream `snakers4/silero-vad` defaults:
+
+| Field | Default | Upstream equivalent |
+|-------|---------|---------------------|
+| `activationThreshold` | `0.5` | `threshold` |
+| `deactivationThreshold` | `0.35` | `neg_threshold = threshold − 0.15` |
+| `minSpeechDuration` | `0.25` s | `min_speech_duration_ms = 250` |
+| `minSilenceDuration` | `0.1` s | `min_silence_duration_ms = 100` |
+| `prefixPaddingDuration` | `0.03` s | `speech_pad_ms = 30` |
+
+Override per call site rather than as a global default. A common tweak: deployments that experience truncation on natural pauses raise `minSilenceDuration` to 0.5–1.0 s:
+
+```typescript
+const vad = await SileroVAD.forPhoneCall({ minSilenceDuration: 0.5 });
+```
+
+<Note>
+`SileroVAD.forPhoneCall()` returns a `Promise<SileroVAD>` — `await` it once at process startup before constructing your agent. The underlying ONNX session is reused across calls.
+</Note>
 
 ## Engine vs Pipeline Mode
 
