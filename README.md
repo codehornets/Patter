@@ -189,14 +189,14 @@ cd python && pip install -r requirements.txt && python main.py
 
 > Using Claude Code, Claude Desktop, OpenClaw, Hermes, Cursor, Codex, or other AI coding agents?
 >
-> **[Install Patter skills for voice agents →](https://www.skills.sh/patterai/patter)**
+> **[Install Patter skills for voice agents →](https://www.skills.sh/patterai/skills)**
 
 ```bash
 # Install all five skills (recommended)
-npx skills add patterai/patter
+npx skills add patterai/skills
 
 # Or install one
-npx skills add patterai/patter --skill build-voice-agent
+npx skills add patterai/skills --skill build-voice-agent
 ```
 
 The bundle works in **~55 agent harnesses** that consume the
@@ -207,19 +207,21 @@ machine learns the SDK.
 
 | Skill | What it teaches the agent |
 |---|---|
-| [`setup-patter`](./skills/setup-patter) | Install Patter, configure provider/carrier env keys, verify the environment |
-| [`build-voice-agent`](./skills/build-voice-agent) | Build a voice agent — Realtime / ConvAI / Pipeline modes, with full Python and TypeScript examples |
-| [`configure-telephony`](./skills/configure-telephony) | Twilio or Telnyx carrier setup — phone numbers, webhooks, tunnels, AMD, voicemail drop |
-| [`add-tools-and-handoffs`](./skills/add-tools-and-handoffs) | Custom tools, `transfer_call`, `end_call`, output guardrails |
-| [`inspect-calls-and-metrics`](./skills/inspect-calls-and-metrics) | Live dashboard, `CallMetrics`, cost tracking, CSV/JSON export |
+| [`setup-patter`](https://github.com/PatterAI/skills/tree/main/setup-patter) | Install Patter, walk the user through provider/carrier consoles, validate each API key, write `.env` |
+| [`build-voice-agent`](https://github.com/PatterAI/skills/tree/main/build-voice-agent) | Build a voice agent — Realtime / ConvAI / Pipeline modes, with full Python and TypeScript examples |
+| [`configure-telephony`](https://github.com/PatterAI/skills/tree/main/configure-telephony) | Twilio or Telnyx carrier setup — phone numbers, webhooks, tunnels, AMD, voicemail drop |
+| [`add-tools-and-handoffs`](https://github.com/PatterAI/skills/tree/main/add-tools-and-handoffs) | Custom tools, `transfer_call`, `end_call`, output guardrails |
+| [`inspect-calls-and-metrics`](https://github.com/PatterAI/skills/tree/main/inspect-calls-and-metrics) | Live dashboard, `CallMetrics`, cost tracking, CSV/JSON export |
+
+Skills live in a dedicated repository: **[`PatterAI/skills`](https://github.com/PatterAI/skills)**.
 
 Pin to an SDK version for reproducibility:
 
 ```bash
-npx skills add patterai/patter#v0.6.2 --skill build-voice-agent
+npx skills add patterai/skills#v0.6.2 --skill build-voice-agent
 ```
 
-Pages on [skills.sh](https://www.skills.sh/patterai/patter) update automatically
+Pages on [skills.sh](https://www.skills.sh/patterai/skills) update automatically
 via install telemetry — no submission required.
 
 ## Configuration
