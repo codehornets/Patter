@@ -19,7 +19,7 @@ Installation extras:
 See ``pyproject.toml`` and the top-level README for the full matrix.
 """
 
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 
 from getpatter._speech_events import (
     AgentState,
@@ -35,6 +35,8 @@ from getpatter.models import (
     CallControl,
     CallEvent,
     CallMetrics,
+    CallOutcome,
+    CallResult,
     CostBreakdown,
     Guardrail,
     HookContext,
@@ -382,6 +384,8 @@ __all__ = [
     "CallControl",
     "CallEvent",
     "CallMetrics",
+    "CallOutcome",
+    "CallResult",
     "CostBreakdown",
     "Guardrail",
     "MachineDetectionResult",

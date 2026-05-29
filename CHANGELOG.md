@@ -1,6 +1,43 @@
 ## Unreleased
 
+## 0.6.3 (2026-05-29)
+
 ### Added
+
+- **Plivo as a third telephony carrier (both SDKs), full Twilio/Telnyx
+  parity.** `Patter(carrier=Plivo(), ...)` / `new Patter({ carrier: new
+  Plivo(), ... })` — outbound dials via Plivo's REST API (`answer_url` /
+  `hangup_url` / async `machine_detection_url`), inbound voice/status/AMD/
+  transfer webhooks with **V3 HMAC-SHA256 signature verification** (fails
+  closed), bidirectional media WebSocket (`playAudio` / `clearAudio` /
+  `checkpoint`), native `sendDTMF` over the media socket (a capability
+  Twilio Media Streams lacks), voicemail drop, and pricing reconciled from
+  the Plivo CDR. `Plivo` / `PlivoAdapter` exported from both package roots.
+  `call(wait=True)` resolves correctly for Plivo too (AMD → voicemail,
+  status callback → no_answer / busy / failed). Contributed by
+  @amalshaji-plivo (#121).
+- **Completion-aware outbound calls: `call(wait=True)` → `CallResult`
+  (both SDKs).** An AI agent can now place a call and `await` its real
+  outcome in one line instead of hand-wiring `on_call_end`/`onCallEnd` to
+  an event and remembering to tear the server down. `wait` defaults to
+  `False` (fire-and-forget, returns `None`/`void` — unchanged), so this is
+  fully backward compatible. When `wait=True` the call resolves to a new
+  `CallResult` (`call_id`, `outcome`, `status`, `duration_seconds`,
+  `transcript`, `cost`, `metrics`); `outcome ∈ answered / voicemail /
+  no_answer / busy / failed`, every value derived from a real carrier
+  signal — answered/voicemail from the AMD result plus the media-stream
+  end, no_answer/busy/failed from the carrier status callback (Twilio) or
+  `call.hangup` cause (Telnyx) when the call never reaches media.
+  `wait=True` requires an active server (raises `PatterConnectionError`
+  otherwise) and is backstop-timeout bounded at `ring_timeout + 1800 s`.
+  Python `libraries/python/getpatter/{models,client,server}.py`; TypeScript
+  `libraries/typescript/src/{types,client,server,stream-handler}.ts`.
+- **`async with Patter(...)` (Python) / `await using` via
+  `[Symbol.asyncDispose]` (TypeScript) for guaranteed teardown.** Exiting
+  the block always runs `disconnect()` — on the normal path and on
+  exception — so a still-running TTS WebSocket can no longer keep the user
+  billed after the SDK is done. `disconnect()` now also fails any in-flight
+  `call(wait=True)` awaiters instead of letting them hang to the backstop.
 
 - **Docs: new `Integrations → OpenClaw` page at
   [`docs.getpatter.com/integrations/openclaw`](https://docs.getpatter.com/integrations/openclaw).**
@@ -51,6 +88,21 @@
   `recording=True` was passed; the README copy lagged behind the code.
 
 ### Fixed
+
+- **Plivo + Pipeline + ElevenLabs produced garbled/static outbound audio
+  (TypeScript).** `StreamHandler.isTtsOutputFormatNativeForCarrier()` only
+  handled `twilio` / `telnyx`, so for `plivo` it returned `false` and the
+  pipeline re-encoded the already-μ-law ElevenLabs output as if it were
+  PCM16 — mangling it. Added the `plivo → ulaw_8000` native-format case
+  (`libraries/typescript/src/stream-handler.ts`). Python was unaffected
+  (its Plivo bridge runs the handler with `for_twilio=True`).
+- **`PatterTool` (Python) reported `cost_usd=None` and
+  `duration_seconds=0.0` on every call.** The result builder probed the
+  `on_call_end` `metrics` payload as a `dict`, but the live payload delivers
+  a `CallMetrics` dataclass, so both fields were silently dropped. Rebuilt
+  on the new `call(wait=True)` → `CallResult` path, which reads
+  `cost.total` / `duration_seconds` as real attributes; the envelope now
+  also carries `outcome`. `libraries/python/getpatter/integrations/patter_tool.py`.
 
 - **Python: pipeline mode crashed immediately on stream start with
   `AttributeError: 'ClientConnection' object has no attribute 'closed'`
