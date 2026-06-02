@@ -2,6 +2,41 @@
 
 ### Added
 
+- **Built-in `consult` escalation tool — give an in-call agent an on-demand
+  bridge back to your own back-office agent.** New `ConsultConfig`
+  (`getpatter` Python / TS) on `Patter.agent(consult=...)` /
+  `phone.agent({ consult })`. When set, Patter auto-injects a `consult_agent`
+  tool (Realtime + Pipeline modes) that the in-call agent invokes mid-call to
+  reach a customer-hosted HTTP endpoint for deeper reasoning or fresh
+  information, then speaks the reply — the orchestrator stays off the per-turn
+  path (consulted only on demand), so ordinary turns keep their low latency.
+  The tool POSTs `{request, call_id, caller, callee}` and accepts a JSON
+  `reply` / `response` / `text` string (or any JSON / plain text). Configurable
+  `headers` (e.g. an `Authorization` bearer; never logged) and `timeout_s` /
+  `timeoutMs` (default 30 s — higher than the generic webhook-tool 10 s because
+  a consult may run deeper reasoning). The URL is SSRF-validated at call start;
+  endpoint failures degrade to a spoken fallback rather than crashing the turn.
+  ElevenLabs ConvAI is unsupported (its tools live on the ElevenLabs-hosted
+  agent) and emits a warning. As a side effect, MCP and consult tools resolved
+  per-call are now also advertised to the Realtime model (previously only the
+  static `agent.tools` were). `libraries/python/getpatter/tools/consult.py`,
+  `libraries/typescript/src/consult.ts`.
+
+- **`ConsultConfig.allow_loopback` / `allowLoopback` — opt-in to point
+  `consult` at a trusted local agent.** New optional flag (default `False` /
+  `undefined`) on `ConsultConfig`. The consult URL is SSRF-validated at build
+  time, which by default rejects loopback / private / link-local hosts. Set
+  `allow_loopback=True` (Python) / `allowLoopback: true` (TS) to relax those
+  host checks for the consult URL only — e.g. a back-office orchestrator on
+  `127.0.0.1`, `localhost`, or an RFC1918 private host. Non-HTTP(S) schemes are
+  still rejected even with the flag, and every other webhook path stays strict;
+  the relaxation is scoped to the developer-configured consult endpoint, which
+  is SDK-user config, not caller input. Cloud-metadata hostnames also become
+  reachable when opted in — only enable for URLs you control.
+  `libraries/python/getpatter/models.py`,
+  `libraries/python/getpatter/tools/tool_executor.py`,
+  `libraries/typescript/src/types.ts`, `libraries/typescript/src/server.ts`.
+
 - **Dashboard: Plivo carrier support in the UI.** The call dashboard now
   renders a Plivo `CarrierBadge` and maps Plivo calls across the cost,
   live-call, and metrics panels, alongside Twilio and Telnyx

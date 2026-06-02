@@ -27,6 +27,7 @@ import { getLogger } from './logger';
 import type { TelephonyBridge } from './stream-handler';
 import type {
   AgentOptions,
+  ToolDefinition,
   PipelineMessageHandler,
   MachineDetectionResult,
   CarrierKind,
@@ -189,8 +190,19 @@ export function telnyxHangupOutcome(cause: string): CallOutcome | null {
  *
  * Mirrors Python's ``ipaddress.ip_address(...).is_private /
  * .is_loopback / .is_link_local / .is_reserved`` behaviour.
+ *
+ * URLs validated here are SDK-user config, not caller-derived input. When
+ * *allowLoopback* is ``true`` (opt-in, consult tool only) the loopback /
+ * private / link-local rejections AND the cloud-metadata hostname block are
+ * skipped, letting a developer point at a trusted local agent. The scheme
+ * check is NEVER relaxed — non-HTTP(S) URLs are always rejected. Every other
+ * caller relies on the strict default (``allowLoopback = false``).
+ *
+ * @param url            The webhook URL to validate.
+ * @param allowLoopback  Opt-in: permit loopback/private/link-local hosts
+ *                       (default ``false`` — strict SSRF guard).
  */
-export function validateWebhookUrl(url: string): void {
+export function validateWebhookUrl(url: string, allowLoopback = false): void {
   const parsed = new URL(url);
   if (!['http:', 'https:'].includes(parsed.protocol)) {
     throw new Error(`Invalid webhook URL scheme: ${parsed.protocol}`);
@@ -200,6 +212,15 @@ export function validateWebhookUrl(url: string): void {
   // hostname/IP comparisons (hex digits are case-insensitive in IPv6).
   const rawHost = parsed.hostname;
   const host = rawHost.replace(/^\[/, '').replace(/\]$/, '').toLowerCase();
+
+  // ``allowLoopback`` is an opt-in escape hatch for trusted, developer-
+  // configured local agents (the consult tool). It relaxes the loopback /
+  // private / link-local rejections below but NEVER the scheme check above —
+  // a developer-specified URL is still not allowed to be ``file:`` etc. Every
+  // other caller passes the strict default (``false``).
+  if (allowLoopback) {
+    return;
+  }
 
   // --- Blocked hostnames (case-insensitive, exact match) ------------------
   const BLOCKED_HOSTNAMES = new Set([
@@ -391,7 +412,7 @@ export function resolveVariables(template: string, variables: Record<string, str
  * Credentials come from the engine instance attached to ``agent.engine``
  * (v0.5.0+). OpenAI falls back to ``config.openaiKey`` when no engine is set.
  */
-export function buildAIAdapter(config: LocalConfig, agent: AgentOptions, resolvedPrompt?: string): AIAdapter {
+export function buildAIAdapter(config: LocalConfig, agent: AgentOptions, resolvedPrompt?: string, toolsOverride?: readonly ToolDefinition[]): AIAdapter {
   const engine = agent.engine;
   if (agent.provider === 'elevenlabs_convai') {
     if (!engine || engine.kind !== 'elevenlabs_convai') {
@@ -412,7 +433,10 @@ export function buildAIAdapter(config: LocalConfig, agent: AgentOptions, resolve
   // and ``additionalProperties: false`` everywhere, which would break tools with
   // optional fields. The user's tool schemas are validated at agent() build time
   // (see tools/schema-validation.ts) so any strict-mode violation surfaces early.
-  const agentTools = agent.tools?.map((t) => ({
+  // ``toolsOverride`` carries the per-call resolved tool list (MCP + consult
+  // merges from the stream handler) so those tools are advertised to the
+  // Realtime model; falls back to the static ``agent.tools``.
+  const agentTools = (toolsOverride ?? agent.tools)?.map((t) => ({
     name: t.name,
     description: t.description,
     parameters: t.parameters,
@@ -1821,7 +1845,8 @@ export class EmbeddedServer {
       onMessage: this.onMessage,
       onMetrics: wrappedMetrics,
       recording: this.recording,
-      buildAIAdapter: (resolvedPrompt: string) => buildAIAdapter(this.config, this.agent, resolvedPrompt),
+      buildAIAdapter: (resolvedPrompt: string, toolsOverride?: readonly ToolDefinition[]) =>
+        buildAIAdapter(this.config, this.agent, resolvedPrompt, toolsOverride),
       sanitizeVariables,
       resolveVariables,
       popPrewarmAudio: this.popPrewarmAudio,
